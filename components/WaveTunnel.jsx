@@ -459,7 +459,7 @@ export default function WaveTunnel() {
     <main className="waveTunnelPage">
       <div ref={mountRef} className="waveTunnelCanvas" />
       <div className="waveTunnelVignette" />
-      <div className="waveTunnelLabel">Grid Texture With Square Nodes</div>
+      <div className="waveTunnelLabel"></div>
     </main>
   );
 }
