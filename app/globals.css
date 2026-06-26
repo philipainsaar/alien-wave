@@ -21,11 +21,27 @@ body {
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  background:
+  background-color: #061035;
+  background-image:
     radial-gradient(circle at 50% 38%, rgba(0, 255, 225, 0.22), transparent 42%),
     radial-gradient(circle at 25% 80%, rgba(255, 112, 255, 0.22), transparent 38%),
     radial-gradient(circle at 82% 72%, rgba(0, 110, 255, 0.28), transparent 38%),
-    #061035;
+    url("/wave-dotted-texture-seamless.jpg");
+  background-size:
+    cover,
+    cover,
+    cover,
+    900px 900px;
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    repeat;
+  background-position:
+    center,
+    center,
+    center,
+    center;
 }
 
 .waveTunnelCanvas {
@@ -41,31 +57,12 @@ body {
   height: 100%;
 }
 
-.waveTunnelVignette {
+.waveTunnelShade {
   pointer-events: none;
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at center, transparent 34%, rgba(0, 0, 0, 0.54) 100%),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04), transparent 20%, rgba(0, 0, 0, 0.34));
-  mix-blend-mode: screen;
-}
-
-.waveTunnelLabel {
-  position: fixed;
-  left: 50%;
-  bottom: max(18px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  padding: 10px 15px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 999px;
-  color: rgba(255, 255, 255, 0.86);
-  background: rgba(5, 8, 36, 0.34);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  user-select: none;
-  pointer-events: none;
+    radial-gradient(circle at center, transparent 46%, rgba(0, 0, 0, 0.28) 100%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04), transparent 22%, rgba(0, 0, 0, 0.2));
+  mix-blend-mode: multiply;
 }
