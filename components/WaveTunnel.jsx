@@ -26,16 +26,17 @@ export default function WaveTunnel() {
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x061035, 0.018);
+    scene.fog = new THREE.FogExp2(0x061035, 0.014);
 
     const camera = new THREE.PerspectiveCamera(
       72,
       mount.clientWidth / mount.clientHeight,
       0.1,
-      420
+      460
     );
 
     camera.position.set(0, 0, 10);
+    scene.add(camera);
 
     const textureLoader = new THREE.TextureLoader();
     const textureUrl = "/wave-dotted-texture-seamless.jpg";
@@ -49,21 +50,83 @@ export default function WaveTunnel() {
       return texture;
     }
 
+    const screenTexture = loadTunnelTexture(2.0, 3.2);
+    const frontTexture = loadTunnelTexture(3.2, 7.5);
     const outerTexture = loadTunnelTexture(4.6, 15.5);
     const innerTexture = loadTunnelTexture(2.2, 8.5);
     const centerTexture = loadTunnelTexture(1.2, 3.2);
 
+    // Screen-space background texture.
+    // This is attached to the camera, so the JPG fills the whole screen behind the tunnel.
+    const screenBackgroundGeometry = new THREE.PlaneGeometry(1, 1);
+    const screenBackgroundMaterial = new THREE.MeshBasicMaterial({
+      map: screenTexture,
+      transparent: true,
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+
+    const screenBackground = new THREE.Mesh(
+      screenBackgroundGeometry,
+      screenBackgroundMaterial
+    );
+
+    screenBackground.position.set(0, 0, -5);
+    screenBackground.renderOrder = -100;
+    camera.add(screenBackground);
+
+    function updateScreenBackgroundSize() {
+      const distance = Math.abs(screenBackground.position.z);
+      const height =
+        2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5) * distance;
+      const width = height * camera.aspect;
+
+      screenBackground.scale.set(width, height, 1);
+    }
+
+    updateScreenBackgroundSize();
+
+    // Front texture shell.
+    // This pushes the same JPG all the way to the front of the camera view.
+    const frontGeometry = new THREE.CylinderGeometry(
+      12.5,
+      6.8,
+      132,
+      isMobile ? 96 : 144,
+      isMobile ? 32 : 54,
+      true
+    );
+
+    frontGeometry.rotateX(Math.PI / 2);
+    frontGeometry.translate(0, 0, -20);
+
+    const frontMaterial = new THREE.MeshBasicMaterial({
+      map: frontTexture,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.36,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const frontTunnel = new THREE.Mesh(frontGeometry, frontMaterial);
+    scene.add(frontTunnel);
+
+    // Deep outer tunnel layer using the same JPG.
     const outerGeometry = new THREE.CylinderGeometry(
-      9.2,
+      10.2,
       2.5,
-      210,
+      260,
       isMobile ? 96 : 144,
       isMobile ? 56 : 86,
       true
     );
 
     outerGeometry.rotateX(Math.PI / 2);
-    outerGeometry.translate(0, 0, -86);
+    outerGeometry.translate(0, 0, -88);
 
     const outerMaterial = new THREE.MeshBasicMaterial({
       map: outerTexture,
@@ -80,7 +143,7 @@ export default function WaveTunnel() {
     const innerGeometry = new THREE.CylinderGeometry(
       7.4,
       1.15,
-      196,
+      208,
       isMobile ? 72 : 112,
       isMobile ? 40 : 64,
       true
@@ -128,7 +191,7 @@ export default function WaveTunnel() {
     const wireGeometry = new THREE.CylinderGeometry(
       8.65,
       1.25,
-      204,
+      212,
       isMobile ? 34 : 46,
       isMobile ? 34 : 50,
       true
@@ -220,7 +283,7 @@ export default function WaveTunnel() {
       ringGroup.add(new THREE.Line(geometry, material));
     }
 
-    const glowGeometry = new THREE.PlaneGeometry(120, 120);
+    const glowGeometry = new THREE.PlaneGeometry(150, 150);
     const glowMaterial = new THREE.MeshBasicMaterial({
       color: 0x1f85ff,
       transparent: true,
@@ -230,7 +293,7 @@ export default function WaveTunnel() {
     });
 
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    glow.position.z = -96;
+    glow.position.z = -120;
     scene.add(glow);
 
     const pointer = {
@@ -255,6 +318,15 @@ export default function WaveTunnel() {
       pointer.x += (pointer.targetX - pointer.x) * 0.045;
       pointer.y += (pointer.targetY - pointer.y) * 0.045;
 
+      // Background texture movement.
+      screenTexture.offset.y = -time * 0.035;
+      screenTexture.offset.x = Math.sin(time * 0.08) * 0.025;
+
+      // Front texture movement.
+      frontTexture.offset.y = -time * 0.18;
+      frontTexture.offset.x = Math.sin(time * 0.22) * 0.05;
+
+      // Deep tunnel texture movement.
       outerTexture.offset.y = -time * 0.12;
       outerTexture.offset.x = Math.sin(time * 0.18) * 0.045;
 
@@ -264,6 +336,7 @@ export default function WaveTunnel() {
       centerTexture.offset.y = -time * 0.36;
       centerTexture.offset.x = Math.sin(time * 0.34) * 0.08;
 
+      frontTunnel.rotation.z = -time * 0.035;
       outerTunnel.rotation.z = time * 0.055;
       innerTunnel.rotation.z = -time * 0.09;
       centerTunnel.rotation.z = time * 0.18;
@@ -271,6 +344,7 @@ export default function WaveTunnel() {
 
       const pulse = 1 + Math.sin(time * 0.85) * 0.025;
 
+      frontTunnel.scale.set(1 / pulse, pulse, 1);
       outerTunnel.scale.set(pulse, 1 / pulse, 1);
       innerTunnel.scale.set(1 / pulse, pulse, 1);
       centerTunnel.scale.set(
@@ -307,8 +381,13 @@ export default function WaveTunnel() {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
 
+      updateScreenBackgroundSize();
+
       renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio || 1, window.innerWidth < 768 ? 1.2 : 1.7)
+        Math.min(
+          window.devicePixelRatio || 1,
+          window.innerWidth < 768 ? 1.2 : 1.7
+        )
       );
       renderer.setSize(width, height);
     };
@@ -323,6 +402,8 @@ export default function WaveTunnel() {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("resize", onResize);
 
+      screenBackgroundGeometry.dispose();
+      frontGeometry.dispose();
       outerGeometry.dispose();
       innerGeometry.dispose();
       centerGeometry.dispose();
@@ -331,6 +412,8 @@ export default function WaveTunnel() {
       rimGeometry.dispose();
       glowGeometry.dispose();
 
+      screenBackgroundMaterial.dispose();
+      frontMaterial.dispose();
       outerMaterial.dispose();
       innerMaterial.dispose();
       centerMaterial.dispose();
@@ -339,6 +422,8 @@ export default function WaveTunnel() {
       rimMaterial.dispose();
       glowMaterial.dispose();
 
+      screenTexture.dispose();
+      frontTexture.dispose();
       outerTexture.dispose();
       innerTexture.dispose();
       centerTexture.dispose();
