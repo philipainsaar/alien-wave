@@ -142,14 +142,14 @@ export default function WaveTunnel() {
             float nodes = nodeX * nodeY * smoothstep(0.22, 1.15, r);
             color += vec3(1.0, 0.93, 1.0) * nodes * 0.26;
 
-            // Center black hole.
+            // White center portal.
             float hole = 1.0 - smoothstep(0.055, 0.17, r);
-            vec3 holeColor = vec3(0.005, 0.0, 0.035);
+            vec3 holeColor = vec3(1.0, 0.98, 0.94);
             color = mix(color, holeColor, hole);
 
-            // Purple rim around the center.
+            // Soft bright rim around the center.
             float rim = smoothstep(0.12, 0.15, r) * (1.0 - smoothstep(0.16, 0.21, r));
-            color += vec3(0.55, 0.34, 1.0) * rim * 0.65;
+            color += vec3(1.0, 0.92, 1.0) * rim * 0.55;
 
             // Very soft vignette only. Texture stays close to normal.
             float vignette = smoothstep(1.45, 0.12, r);
