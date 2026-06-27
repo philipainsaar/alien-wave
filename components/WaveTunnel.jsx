@@ -270,7 +270,7 @@ export default function WaveTunnel() {
         const scale = 1.55 / maxDim;
         model.scale.setScalar(scale);
 
-        model.rotation.set(0, Math.PI, 0);
+        model.rotation.set(0, 0, 0);
 
         model.traverse((child) => {
           if (child.isMesh) {
@@ -316,7 +316,7 @@ export default function WaveTunnel() {
       }
 
       if (model) {
-        model.rotation.y = Math.PI + Math.sin(time * 0.8) * 0.18;
+        model.rotation.y = Math.sin(time * 0.8) * 0.18;
         model.position.y = -0.08 + Math.sin(time * 1.4) * 0.045;
         model.position.x = Math.sin(time * 0.75) * 0.025;
       }
