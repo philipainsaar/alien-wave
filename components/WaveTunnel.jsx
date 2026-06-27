@@ -115,18 +115,15 @@ export default function WaveTunnel() {
             tunnelUv.x = angle / (2.0 * PI) + 0.5 + spin + sin(tunnelDepth * 0.12 + uTime * 0.3) * 0.015;
             tunnelUv.y = tunnelDepth * 0.42 - uTime * 0.18;
 
-            // Main texture. The uploaded JPG is always visible here.
+            // Main texture. This keeps the uploaded JPG close to its normal colors.
             vec3 tex = texture2D(uTexture, tunnelUv).rgb;
 
-            // Darken bright white parts but keep pastel water color.
-            tex = pow(tex, vec3(1.28));
-            tex = saturateColor(tex, 1.38);
-            tex *= vec3(0.82, 0.95, 1.08);
+            // Very light saturation only, no strong darkening.
+            tex = saturateColor(tex, 1.08);
 
-            // Add depth shading so it feels like a tunnel, not a flat image.
+            // Gentle tunnel depth, but keep the texture visible and bright.
             float edgeGlow = smoothstep(0.1, 1.2, r);
-            float centerFade = smoothstep(0.08, 0.55, r);
-            float tunnelShade = mix(0.58, 1.16, edgeGlow);
+            float tunnelShade = mix(0.92, 1.08, edgeGlow);
             vec3 color = tex * tunnelShade;
 
             // Grid display overlay: rings + radial lines.
@@ -137,13 +134,13 @@ export default function WaveTunnel() {
             grid *= smoothstep(0.16, 1.0, r);
 
             vec3 gridColor = mix(vec3(0.72, 1.0, 1.0), vec3(1.0, 0.75, 1.0), sin(angle * 3.0 + uTime) * 0.5 + 0.5);
-            color += gridColor * grid * 0.34;
+            color += gridColor * grid * 0.18;
 
             // Small square node sparkle pattern, placed on the grid.
             float nodeX = lineMask(angle / (2.0 * PI) + 0.5, 18.0, 0.025);
             float nodeY = lineMask(tunnelDepth + uTime * 0.5, 5.8, 0.025);
             float nodes = nodeX * nodeY * smoothstep(0.22, 1.15, r);
-            color += vec3(1.0, 0.93, 1.0) * nodes * 0.5;
+            color += vec3(1.0, 0.93, 1.0) * nodes * 0.26;
 
             // Center black hole.
             float hole = 1.0 - smoothstep(0.055, 0.17, r);
@@ -154,12 +151,12 @@ export default function WaveTunnel() {
             float rim = smoothstep(0.12, 0.15, r) * (1.0 - smoothstep(0.16, 0.21, r));
             color += vec3(0.55, 0.34, 1.0) * rim * 0.65;
 
-            // Vignette and final contrast.
-            float vignette = smoothstep(1.35, 0.15, r);
-            color *= mix(0.55, 1.08, vignette);
+            // Very soft vignette only. Texture stays close to normal.
+            float vignette = smoothstep(1.45, 0.12, r);
+            color *= mix(0.88, 1.04, vignette);
 
-            // Prevent white blowout.
-            color = min(color, vec3(0.96));
+            // Keep natural brightness without crushing the whites.
+            color = clamp(color, vec3(0.0), vec3(1.0));
 
             gl_FragColor = vec4(color, 1.0);
           }
