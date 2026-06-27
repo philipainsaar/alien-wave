@@ -5,6 +5,31 @@ import * as THREE from "three";
 
 const TEXTURE_URL = "/wave-cylinder-texture.jpg";
 
+function makeFallbackTexture() {
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext("2d");
+
+  const gradient = ctx.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, "#b9d8ff");
+  gradient.addColorStop(0.35, "#d9b7ff");
+  gradient.addColorStop(0.7, "#9ff5ff");
+  gradient.addColorStop(1, "#101640");
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+
+  return texture;
+}
+
 export default function WaveTunnel() {
   const mountRef = useRef(null);
 
@@ -12,8 +37,10 @@ export default function WaveTunnel() {
     const mount = mountRef.current;
     if (!mount) return undefined;
 
-    const isMobile = window.innerWidth < 768;
+    let disposed = false;
     let animationFrameId = 0;
+
+    const isMobile = window.innerWidth < 768;
 
     const renderer = new THREE.WebGLRenderer({
       antialias: !isMobile,
@@ -31,7 +58,7 @@ export default function WaveTunnel() {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x03071f);
-    scene.fog = new THREE.FogExp2(0x03071f, 0.012);
+    scene.fog = new THREE.FogExp2(0x03071f, 0.006);
 
     const camera = new THREE.PerspectiveCamera(
       74,
@@ -40,7 +67,9 @@ export default function WaveTunnel() {
       420
     );
 
-    camera.position.set(0, 0, 8);
+    // Camera is INSIDE the tunnel.
+    // This is the important fix: no front opening/disk can be seen.
+    camera.position.set(0, 0, 0);
 
     const resources = {
       geometries: [],
@@ -63,52 +92,21 @@ export default function WaveTunnel() {
       return texture;
     };
 
+    const pointer = {
+      x: 0,
+      y: 0,
+      tx: 0,
+      ty: 0,
+    };
+
+    const onPointerMove = (event) => {
+      pointer.tx = (event.clientX / window.innerWidth - 0.5) * 2;
+      pointer.ty = (event.clientY / window.innerHeight - 0.5) * 2;
+    };
+
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+
     const textureLoader = new THREE.TextureLoader();
-
-    function makeFallbackTexture() {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1024;
-      canvas.height = 1024;
-
-      const ctx = canvas.getContext("2d");
-
-      const gradient = ctx.createRadialGradient(512, 512, 40, 512, 512, 720);
-      gradient.addColorStop(0, "#101b66");
-      gradient.addColorStop(0.25, "#176aff");
-      gradient.addColorStop(0.52, "#00e1da");
-      gradient.addColorStop(0.75, "#b56cff");
-      gradient.addColorStop(1, "#04071f");
-
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 1024, 1024);
-
-      ctx.globalAlpha = 0.55;
-      ctx.strokeStyle = "#d9fbff";
-      ctx.lineWidth = 2;
-
-      for (let y = -80; y < 1120; y += 48) {
-        ctx.beginPath();
-
-        for (let x = -60; x < 1100; x += 12) {
-          const yy =
-            y +
-            Math.sin((x / 1024) * Math.PI * 8 + y * 0.02) * 20 +
-            Math.sin((x / 1024) * Math.PI * 18) * 6;
-
-          if (x === -60) ctx.moveTo(x, yy);
-          else ctx.lineTo(x, yy);
-        }
-
-        ctx.stroke();
-      }
-
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-
-      return texture;
-    }
 
     function prepareTexture(texture, repeatX, repeatY) {
       texture.wrapS = THREE.RepeatWrapping;
@@ -120,35 +118,36 @@ export default function WaveTunnel() {
     }
 
     function buildScene(baseTexture) {
-      const tunnelTexture = keepTexture(prepareTexture(baseTexture, 1.35, 7.5));
+      if (disposed) return;
 
-      const innerTexture = keepTexture(baseTexture.clone());
-      prepareTexture(innerTexture, 0.95, 4.2);
+      const tunnelTexture = keepTexture(prepareTexture(baseTexture, 1.2, 8.5));
 
-      // Main tunnel only. No flat image plane. No CSS image background.
-      // The large front radius starts close to the camera so it fills the full screen.
-      const tunnelLength = 176;
+      const secondTexture = keepTexture(baseTexture.clone());
+      prepareTexture(secondTexture, 0.9, 5.2);
+
+      // Straight long cylinder with the camera inside it.
+      // It extends from z=+18 behind the camera to z=-230 in front.
+      // Because the near edge is behind the camera, there is no visible giant circle.
+      const tunnelLength = 248;
+      const tunnelRadius = 8.4;
+
       const tunnelGeometry = keepGeometry(
         new THREE.CylinderGeometry(
-          18.5,
-          1.15,
+          tunnelRadius,
+          tunnelRadius,
           tunnelLength,
           isMobile ? 128 : 192,
-          isMobile ? 80 : 128,
+          isMobile ? 96 : 140,
           true
         )
       );
 
       tunnelGeometry.rotateX(Math.PI / 2);
-
-      // Top opening is close to the camera, bottom goes far away.
-      // After rotateX, top is at +length/2 on z. Translate puts top at z=4.
-      tunnelGeometry.translate(0, 0, 4 - tunnelLength / 2);
+      tunnelGeometry.translate(0, 0, -106);
 
       const tunnelMaterial = keepMaterial(
         new THREE.MeshBasicMaterial({
           map: tunnelTexture,
-          color: 0xaee7ff,
           side: THREE.BackSide,
           transparent: false,
           depthWrite: false,
@@ -158,58 +157,57 @@ export default function WaveTunnel() {
       const tunnel = new THREE.Mesh(tunnelGeometry, tunnelMaterial);
       scene.add(tunnel);
 
-      // Second softer cylinder layer for watery depth, also curved, never flat.
-      const innerLength = 116;
-      const innerGeometry = keepGeometry(
+      // Second transparent rotating layer for watery depth.
+      const secondGeometry = keepGeometry(
         new THREE.CylinderGeometry(
-          8.2,
-          0.38,
-          innerLength,
+          7.7,
+          7.7,
+          tunnelLength,
           isMobile ? 96 : 144,
-          isMobile ? 54 : 84,
+          isMobile ? 72 : 110,
           true
         )
       );
 
-      innerGeometry.rotateX(Math.PI / 2);
-      innerGeometry.translate(0, 0, -10 - innerLength / 2);
+      secondGeometry.rotateX(Math.PI / 2);
+      secondGeometry.translate(0, 0, -106);
 
-      const innerMaterial = keepMaterial(
+      const secondMaterial = keepMaterial(
         new THREE.MeshBasicMaterial({
-          map: innerTexture,
-          color: 0x83eaff,
+          map: secondTexture,
+          color: 0xb9f8ff,
           side: THREE.BackSide,
           transparent: true,
-          opacity: 0.42,
+          opacity: 0.34,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         })
       );
 
-      const innerTunnel = new THREE.Mesh(innerGeometry, innerMaterial);
-      scene.add(innerTunnel);
+      const secondTunnel = new THREE.Mesh(secondGeometry, secondMaterial);
+      scene.add(secondTunnel);
 
-      // Wire grid to make it read as 3D display/tunnel.
+      // Wire grid overlay on the same cylinder shape.
       const wireGeometry = keepGeometry(
         new THREE.CylinderGeometry(
-          18.2,
-          0.95,
+          8.28,
+          8.28,
           tunnelLength,
-          isMobile ? 42 : 56,
-          isMobile ? 62 : 92,
+          isMobile ? 42 : 58,
+          isMobile ? 70 : 100,
           true
         )
       );
 
       wireGeometry.rotateX(Math.PI / 2);
-      wireGeometry.translate(0, 0, 4 - tunnelLength / 2);
+      wireGeometry.translate(0, 0, -106);
 
       const wireMaterial = keepMaterial(
         new THREE.MeshBasicMaterial({
-          color: 0xf3e7ff,
+          color: 0xf7edff,
           wireframe: true,
           transparent: true,
-          opacity: 0.22,
+          opacity: 0.2,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         })
@@ -218,24 +216,22 @@ export default function WaveTunnel() {
       const wireTunnel = new THREE.Mesh(wireGeometry, wireMaterial);
       scene.add(wireTunnel);
 
-      // Star/water specks in 3D space, not a flat image.
-      const particleCount = isMobile ? 650 : 1100;
+      // Small 3D particles inside the tunnel.
+      const particleCount = isMobile ? 450 : 850;
       const particlePositions = new Float32Array(particleCount * 3);
       const particleColors = new Float32Array(particleCount * 3);
       const color = new THREE.Color();
 
       for (let i = 0; i < particleCount; i += 1) {
-        const depth = Math.random();
-        const z = 2 - depth * 160;
-        const radius = 2 + depth * 16;
+        const z = -Math.random() * 220;
+        const radius = 1.2 + Math.random() * 7.0;
         const angle = Math.random() * Math.PI * 2;
 
         particlePositions[i * 3] = Math.cos(angle) * radius;
-        particlePositions[i * 3 + 1] = Math.sin(angle) * radius * 0.86;
+        particlePositions[i * 3 + 1] = Math.sin(angle) * radius;
         particlePositions[i * 3 + 2] = z;
 
-        const hue = Math.random() < 0.5 ? 0.52 : 0.8;
-        color.setHSL(hue, 0.7, 0.72 + Math.random() * 0.22);
+        color.setHSL(Math.random() < 0.55 ? 0.52 : 0.8, 0.55, 0.82);
 
         particleColors[i * 3] = color.r;
         particleColors[i * 3 + 1] = color.g;
@@ -254,7 +250,7 @@ export default function WaveTunnel() {
 
       const particleMaterial = keepMaterial(
         new THREE.PointsMaterial({
-          size: isMobile ? 0.05 : 0.04,
+          size: isMobile ? 0.045 : 0.035,
           vertexColors: true,
           transparent: true,
           opacity: 0.72,
@@ -266,27 +262,59 @@ export default function WaveTunnel() {
       const particles = new THREE.Points(particleGeometry, particleMaterial);
       scene.add(particles);
 
-      // Vortex rings toward the hole.
+      // Far dark vortex center.
+      const holeGeometry = keepGeometry(new THREE.CircleGeometry(1.15, 96));
+      const holeMaterial = keepMaterial(
+        new THREE.MeshBasicMaterial({
+          color: 0x010014,
+          transparent: true,
+          opacity: 0.96,
+          depthWrite: false,
+        })
+      );
+
+      const hole = new THREE.Mesh(holeGeometry, holeMaterial);
+      hole.position.set(0.15, -0.08, -72);
+      hole.scale.set(1.28, 0.9, 1);
+      scene.add(hole);
+
+      const rimGeometry = keepGeometry(new THREE.TorusGeometry(1.36, 0.075, 12, 128));
+      const rimMaterial = keepMaterial(
+        new THREE.MeshBasicMaterial({
+          color: 0xc18cff,
+          transparent: true,
+          opacity: 0.88,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+
+      const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+      rim.position.copy(hole.position);
+      rim.scale.copy(hole.scale);
+      scene.add(rim);
+
+      // Extra spiral/ring lines near the center.
       const ringGroup = new THREE.Group();
       scene.add(ringGroup);
 
-      for (let i = 0; i < 44; i += 1) {
-        const radius = 0.58 + i * 0.15;
-        const z = -18 - i * 1.15;
+      for (let i = 0; i < 34; i += 1) {
+        const radius = 1.25 + i * 0.14;
+        const z = -72 - i * 1.3;
         const points = [];
-        const steps = 170;
+        const steps = 160;
 
         for (let j = 0; j <= steps; j += 1) {
           const angle = (j / steps) * Math.PI * 2;
 
           const wobble =
-            Math.sin(angle * 5 + i * 0.32) * 0.05 +
-            Math.cos(angle * 3 - i * 0.24) * 0.035;
+            Math.sin(angle * 5 + i * 0.32) * 0.045 +
+            Math.cos(angle * 3 - i * 0.22) * 0.03;
 
           points.push(
             new THREE.Vector3(
-              Math.cos(angle + i * 0.04) * (radius + wobble),
-              Math.sin(angle + i * 0.04) * (radius + wobble) * 0.8,
+              Math.cos(angle + i * 0.045) * (radius + wobble),
+              Math.sin(angle + i * 0.045) * (radius + wobble) * 0.82,
               z
             )
           );
@@ -300,7 +328,7 @@ export default function WaveTunnel() {
           new THREE.LineBasicMaterial({
             color: i % 2 === 0 ? 0xffd0ff : 0xc8fbff,
             transparent: true,
-            opacity: Math.max(0.11, 0.52 - i * 0.007),
+            opacity: Math.max(0.1, 0.42 - i * 0.008),
             blending: THREE.AdditiveBlending,
             depthWrite: false,
           })
@@ -309,107 +337,52 @@ export default function WaveTunnel() {
         ringGroup.add(new THREE.Line(ringGeometry, ringMaterial));
       }
 
-      // Dark center hole.
-      const holeGeometry = keepGeometry(new THREE.CircleGeometry(1.02, 90));
-      const holeMaterial = keepMaterial(
-        new THREE.MeshBasicMaterial({
-          color: 0x020014,
-          transparent: true,
-          opacity: 0.97,
-          depthWrite: false,
-        })
-      );
-
-      const hole = new THREE.Mesh(holeGeometry, holeMaterial);
-      hole.position.set(0.16, -0.06, -18);
-      hole.scale.set(1.25, 0.9, 1);
-      scene.add(hole);
-
-      const rimGeometry = keepGeometry(new THREE.TorusGeometry(1.22, 0.08, 12, 96));
-      const rimMaterial = keepMaterial(
-        new THREE.MeshBasicMaterial({
-          color: 0xc18cff,
-          transparent: true,
-          opacity: 0.9,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-
-      const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-      rim.position.copy(hole.position);
-      rim.scale.copy(hole.scale);
-      scene.add(rim);
-
-      const pointer = {
-        x: 0,
-        y: 0,
-        tx: 0,
-        ty: 0,
-      };
-
-      const onPointerMove = (event) => {
-        pointer.tx = (event.clientX / window.innerWidth - 0.5) * 2;
-        pointer.ty = (event.clientY / window.innerHeight - 0.5) * 2;
-      };
-
-      window.addEventListener("pointermove", onPointerMove, { passive: true });
-
       const animate = () => {
+        if (disposed) return;
+
         const time = performance.now() * 0.001;
 
         pointer.x += (pointer.tx - pointer.x) * 0.04;
         pointer.y += (pointer.ty - pointer.y) * 0.04;
 
         tunnelTexture.offset.y = -time * 0.11;
-        tunnelTexture.offset.x = Math.sin(time * 0.2) * 0.035;
+        tunnelTexture.offset.x = Math.sin(time * 0.18) * 0.035;
 
-        innerTexture.offset.y = -time * 0.22;
-        innerTexture.offset.x = Math.sin(time * 0.26) * 0.055;
+        secondTexture.offset.y = -time * 0.22;
+        secondTexture.offset.x = Math.sin(time * 0.26) * 0.055;
 
         tunnel.rotation.z = time * 0.055;
-        innerTunnel.rotation.z = -time * 0.09;
-        wireTunnel.rotation.z = -time * 0.032;
+        secondTunnel.rotation.z = -time * 0.08;
+        wireTunnel.rotation.z = -time * 0.028;
         particles.rotation.z = time * 0.018;
-        ringGroup.rotation.z = -time * 0.16;
+        ringGroup.rotation.z = -time * 0.14;
 
-        const pulse = 1 + Math.sin(time * 0.85) * 0.018;
-        tunnel.scale.set(pulse, 1 / pulse, 1);
-        innerTunnel.scale.set(1 / pulse, pulse, 1);
+        const pulse = 1 + Math.sin(time * 0.85) * 0.012;
+        tunnel.scale.set(pulse, pulse, 1);
+        secondTunnel.scale.set(1 / pulse, 1 / pulse, 1);
 
         hole.rotation.z = time * 0.24;
         rim.rotation.z = time * 0.24;
-        rim.scale.set(
-          1.25 + Math.sin(time * 1.7) * 0.035,
-          0.9 + Math.cos(time * 1.5) * 0.025,
-          1
-        );
 
-        camera.position.x = pointer.x * 0.5 + Math.sin(time * 0.35) * 0.05;
-        camera.position.y = -pointer.y * 0.35 + Math.cos(time * 0.28) * 0.04;
-        camera.rotation.z = Math.sin(time * 0.18) * 0.016 + pointer.x * 0.02;
+        camera.position.x = pointer.x * 0.35 + Math.sin(time * 0.32) * 0.035;
+        camera.position.y = -pointer.y * 0.26 + Math.cos(time * 0.29) * 0.03;
+        camera.rotation.z = Math.sin(time * 0.18) * 0.012 + pointer.x * 0.015;
 
         renderer.render(scene, camera);
         animationFrameId = requestAnimationFrame(animate);
       };
 
       animate();
-
-      return () => {
-        window.removeEventListener("pointermove", onPointerMove);
-      };
     }
-
-    let cleanupScene = () => {};
 
     textureLoader.load(
       TEXTURE_URL,
       (texture) => {
-        cleanupScene = buildScene(texture);
+        buildScene(texture);
       },
       undefined,
       () => {
-        cleanupScene = buildScene(makeFallbackTexture());
+        buildScene(makeFallbackTexture());
       }
     );
 
@@ -432,9 +405,10 @@ export default function WaveTunnel() {
     window.addEventListener("resize", onResize);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(animationFrameId);
-      cleanupScene();
 
+      window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("resize", onResize);
 
       for (const geometry of resources.geometries) geometry.dispose();
