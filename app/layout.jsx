@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Wave Tunnel",
-  description: "Three.js wave tunnel with grid square node texture"
+  title: "Almost made in Japan",
+  description: "Wave tunnel"
 };
 
 export default function RootLayout({ children }) {
